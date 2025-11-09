@@ -11,6 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chakra-ui/icon": "^3.2.0",
+    "@chakra-ui/popper": "^3.1.0",
+    "@chakra-ui/react-context": "^2.1.0",
+    "@chakra-ui/shared-utils": "^2.0.5",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -55,6 +59,7 @@
     "react-quill": "^2.0.0",
     "react-resizable-panels": "^2.1.9",
     "react-router-dom": "^6.30.1",
+    "react-spreadsheet-import": "^4.7.1",
     "recharts": "^2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",

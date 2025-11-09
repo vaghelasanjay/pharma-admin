@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { productAPI, brandAPI, productCategoryAPI, productSubCategoryAPI, productsTagAPI } from "@/lib/api";
+import { ReactSpreadsheetImport } from "react-spreadsheet-import";
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -71,6 +72,7 @@ const Products = () => {
     CommonBulkId: "",
     Status: true,
   });
+  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -450,14 +452,14 @@ const Products = () => {
     ],
   };
 
-  const getBrandName = (brandId: number) => {
-    const brand = brands.find(b => b.BrandId === brandId);
-    return brand ? brand.Title : `Brand ${brandId}`;
+  const getBrandName = (p: any) => {
+    const brand = brands.find(b => b.BrandId === p.brandId);
+    return brand ? brand.Title : p?.BrandTitle || `-`;
   };
 
-  const getCategoryName = (catId: number) => {
-    const category = categories.find(c => c.ProductCatId === catId);
-    return category ? category.Title : `Category ${catId}`;
+  const getCategoryName = (p: any) => {
+    const category = categories.find(c => c.ProductCatId === p.catId);
+    return category ? category.Title : p?.ProductCatTitle || `-`;
   };
 
   const getTagNames = (tagString: string) => {
@@ -483,6 +485,69 @@ const Products = () => {
     return null;
   };
 
+  const toggleIsOPen = () => setIsOpen(!isOpen);
+
+  const importExcelHandleSubmit = async (data) => {
+  // Data will be an array of objects matching your field structure
+  console.log("Imported data:", data);
+  
+  try {
+    const dummy = data.validData;
+    // Validate data
+    if (!dummy || !Array.isArray(dummy) || dummy.length === 0) {
+      console.warn("No dummy to import");
+      return;
+    }
+
+    // Process dummy with proper error handling
+    const results = [];
+    
+    for (let i = 0; i < dummy.length; i++) {
+      const product = dummy[i];
+      console.log(`Processing product ${i + 1}:`, product);
+      
+      try {
+        // Validate required fields before processing
+        if (!product || typeof product !== 'object') {
+          console.warn(`Skipping invalid product at index ${i}`);
+          continue;
+        }
+
+        const result = await productAPI.excelCreate(product);
+        results.push({
+          index: i,
+          success: true,
+          data: result,
+          product: product
+        });
+        console.log(`Successfully imported product ${i + 1}`);
+
+      } catch (error) {
+        console.error(`Failed to import product ${i + 1}:`, error);
+        results.push({
+          index: i,
+          success: false,
+          error: error.message,
+          product: product
+        });
+      }
+    }
+
+    // Log summary
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+    
+    console.log(`Import completed: ${successful} successful, ${failed} failed`);
+
+        await fetchProducts();
+
+    return results;
+
+  } catch (error) {
+    console.error("Error during import process:", error);
+    throw error;
+  }
+};
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -490,436 +555,642 @@ const Products = () => {
           <h1 className="text-3xl font-bold">Product Management</h1>
           <p className="text-muted-foreground">Manage pharma products</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-              <DialogDescription>
-                {editingProduct ? "Update product details" : "Create a new product"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="title">Product Title *</Label>
-                  <Input
-                    id="title"
-                    value={formData.Title}
-                    onChange={(e) => setFormData({ ...formData, Title: e.target.value })}
-                    required
-                    placeholder="Enter product title"
-                  />
-                </div>
+        <div className="flex items-center space-x-2">
+          <ReactSpreadsheetImport
+            isOpen={isOpen}
+            onClose={toggleIsOPen}
+            onSubmit={importExcelHandleSubmit}
+            fields={[
+              {
+                label: "Title",
+                key: "Title",
+                alternateMatches: ["product title", "name", "product name"],
+                fieldType: { type: "input" },
+                example: "Bold Care Spark Supplement (30 Capsules)",
+                validations: [
+                  {
+                    rule: "required",
+                    errorMessage: "Product title is required",
+                    level: "error",
+                  },
+                ],
+              },
+              {
+                label: "Original Price",
+                key: "OriginalPrice",
+                alternateMatches: ["price", "original price", "cost"],
+                fieldType: { type: "input" },
+                example: "699",
+                validations: [
+                  {
+                    rule: "required",
+                    errorMessage: "Original price is required",
+                    level: "error",
+                  },
+                ],
+              },
+              {
+                label: "High Price",
+                key: "HighPrice",
+                alternateMatches: ["high price", "max price", "mrp"],
+                fieldType: { type: "input" },
+                example: "799",
+              },
+              {
+                label: "Short Description",
+                key: "ShortDecription",
+                alternateMatches: ["short description", "description", "summary"],
+                fieldType: { type: "input" },
+                example: "<p>Daily supplement that supports energy and healthy testosterone levels.</p>",
+              },
+              {
+                label: "Main Description 1",
+                key: "MainDecription1",
+                alternateMatches: ["main description", "description 1", "full description"],
+                fieldType: { type: "input" },
+                example: "<p>Bold Care Spark Capsules are formulated with natural herbs...</p>",
+              },
+              {
+                label: "Main Description 2",
+                key: "MainDecription2",
+                alternateMatches: ["additional description", "description 2"],
+                fieldType: { type: "input" },
+                example: "",
+              },
+              {
+                label: "Quantity",
+                key: "Quantity",
+                alternateMatches: ["stock", "qty", "inventory"],
+                fieldType: { type: "input" },
+                example: "68",
+                validations: [
+                  {
+                    rule: "required",
+                    errorMessage: "Quantity is required",
+                    level: "error",
+                  },
+                ],
+              },
+              {
+                label: "Product Tag",
+                key: "ProductTag",
+                alternateMatches: ["tags", "product tags", "keywords"],
+                fieldType: { type: "input" },
+                example: "vitality,performance,natural,men-health,energy,booster",
+              },
+              {
+                label: "Images",
+                key: "Images",
+                alternateMatches: ["image ids", "photos", "media", "images"],
+                fieldType: { type: "input" },
+                validations: [
+                  {
+                    rule: "required",
+                    errorMessage: "Images are required",
+                    level: "error",
+                  },
+                ],
+                example: "a.png,b.png,c.png",
+              },
+              {
+                label: "Product Category ID",
+                key: "ProductCatId",
+                alternateMatches: ["category id", "cat id"],
+                fieldType: { type: "input" },
+                example: "1",
+              },
+              {
+                label: "Product Category Title",
+                key: "ProductCatTitle",
+                alternateMatches: ["category", "category title"],
+                fieldType: { type: "input" },
+                example: "Sexual Wellness",
+              },
+              {
+                label: "Product Subcategory ID",
+                key: "ProductSubCatId",
+                alternateMatches: ["subcategory id", "sub cat id"],
+                fieldType: { type: "input" },
+                example: "2",
+              },
+              {
+                label: "Product Subcategory Title",
+                key: "ProductSubCatTitle",
+                alternateMatches: ["subcategory", "subcategory title"],
+                fieldType: { type: "input" },
+                example: "Erectile Dysfunction",
+              },
+              {
+                label: "Brand ID",
+                key: "BrandId",
+                alternateMatches: ["brand id"],
+                fieldType: { type: "input" },
+                example: "26",
+              },
+              {
+                label: "Brand Title",
+                key: "BrandTitle",
+                alternateMatches: ["brand", "brand name"],
+                fieldType: { type: "input" },
+                example: "Bold Care",
+              },
+              {
+                label: "Combo",
+                key: "Combo",
+                alternateMatches: ["is combo", "combo product"],
+                fieldType: {
+                  type: "checkbox",
+                  options: [
+                    { label: "True", value: "true" },
+                    { label: "False", value: "false" }
+                  ]
+                },
+                example: "false",
+              },
+              {
+                label: "Trending",
+                key: "Tranding", // Note: There's a typo in your data key "Tranding" instead of "Trending"
+                alternateMatches: ["is trending", "trending", "popular"],
+                fieldType: {
+                  type: "checkbox",
+                  options: [
+                    { label: "True", value: "true" },
+                    { label: "False", value: "false" }
+                  ]
+                },
+                example: "false",
+              },
+              {
+                label: "Order ID",
+                key: "OrderId",
+                alternateMatches: ["order", "display order"],
+                fieldType: { type: "input" },
+                example: "1",
+              },
+              {
+                label: "Common Bulk ID",
+                key: "CommonBulkId",
+                alternateMatches: ["bulk id", "common id"],
+                fieldType: { type: "input" },
+                example: "1",
+              },
+              {
+                label: "Status",
+                key: "Status",
+                alternateMatches: ["active", "is active"],
+                fieldType: {
+                  type: "checkbox",
+                  options: [
+                    { label: "True", value: "true" },
+                    { label: "False", value: "false" }
+                  ]
+                },
+                example: "true",
+              },
+              {
+                label: "Product Tag Title",
+                key: "ProductTagTitle",
+                alternateMatches: ["tag titles", "formatted tags"],
+                fieldType: { type: "input" },
+                example: "vitality, performance, natural, men-health, energy, booster",
+              },
+            ]}
+          />
+          <Button onClick={toggleIsOPen}>
+            <Plus className="mx-2 h-4 w-4" />
+            Import Products
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+                <DialogDescription>
+                  {editingProduct ? "Update product details" : "Create a new product"}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Basic Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="title">Product Title *</Label>
+                    <Input
+                      id="title"
+                      value={formData.Title}
+                      onChange={(e) => setFormData({ ...formData, Title: e.target.value })}
+                      required
+                      placeholder="Enter product title"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="originalPrice">Original Price *</Label>
-                  <Input
-                    id="originalPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.OriginalPrice}
-                    onChange={(e) => setFormData({ ...formData, OriginalPrice: e.target.value })}
-                    required
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="originalPrice">Original Price *</Label>
+                    <Input
+                      id="originalPrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.OriginalPrice}
+                      onChange={(e) => setFormData({ ...formData, OriginalPrice: e.target.value })}
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="highPrice">High Price *</Label>
-                  <Input
-                    id="highPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.HighPrice}
-                    onChange={(e) => setFormData({ ...formData, HighPrice: e.target.value })}
-                    required
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="highPrice">High Price *</Label>
+                    <Input
+                      id="highPrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.HighPrice}
+                      onChange={(e) => setFormData({ ...formData, HighPrice: e.target.value })}
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity *</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={formData.Quantity}
-                    onChange={(e) => setFormData({ ...formData, Quantity: e.target.value })}
-                    required
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={formData.Quantity}
+                      onChange={(e) => setFormData({ ...formData, Quantity: e.target.value })}
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="brand">Brand</Label>
-                  <Select
-                    value={formData.BrandId}
-                    onValueChange={(value) => {
-                      const brand = brands.find(b => b.BrandId.toString() === value);
-                      setFormData({ 
-                        ...formData, 
-                        BrandId: value,
-                        BrandTitle: brand ? brand.Title : ""
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {brands.map((brand) => (
-                        <SelectItem key={brand.BrandId} value={brand.BrandId.toString()}>
-                          {brand.Title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={formData.ProductCatId}
-                    onValueChange={(value) => {
-                      const category = categories.find(c => c.ProductCatId.toString() === value);
-                      setFormData({ 
-                        ...formData, 
-                        ProductCatId: value,
-                        ProductCatTitle: category ? category.Title : "",
-                        ProductSubCatId: "",
-                        ProductSubCatTitle: ""
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.ProductCatId} value={category.ProductCatId.toString()}>
-                          {category.Title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="subCategory">Sub Category</Label>
-                  <Select
-                    value={formData.ProductSubCatId}
-                    onValueChange={(value) => {
-                      const subCategory = subCategories.find(sc => sc.ProductSubCatId.toString() === value);
-                      setFormData({ 
-                        ...formData, 
-                        ProductSubCatId: value,
-                        ProductSubCatTitle: subCategory ? subCategory.Title : ""
-                      });
-                    }}
-                    disabled={!formData.ProductCatId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.ProductCatId ? "Select sub category" : "Select category first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subCategories.map((subCategory) => (
-                        <SelectItem key={subCategory.ProductSubCatId} value={subCategory.ProductSubCatId.toString()}>
-                          {subCategory.Title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Product Tags - Dropdown with Chips */}
-              <div className="space-y-2">
-                <Label>Product Tags</Label>
-                <div className="space-y-2">
-                  <Select onValueChange={handleTagSelect}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select tags" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tags
-                        .filter(tag => !selectedTags.includes(tag.Title))
-                        .map((tag) => (
-                          <SelectItem key={tag.ProductTagId} value={tag.Title}>
-                            {tag.Title}
+                  <div className="space-y-2">
+                    <Label htmlFor="brand">Brand</Label>
+                    <Select
+                      value={formData.BrandId}
+                      onValueChange={(value) => {
+                        const brand = brands.find(b => b.BrandId.toString() === value);
+                        setFormData({
+                          ...formData,
+                          BrandId: value,
+                          BrandTitle: brand ? brand.Title : ""
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select brand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {brands.map((brand) => (
+                          <SelectItem key={brand.BrandId} value={brand.BrandId.toString()}>
+                            {brand.Title}
                           </SelectItem>
                         ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  {/* Selected Tags Chips */}
-                  {selectedTags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedTags.map((tag) => (
-                        <div
-                          key={tag}
-                          className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-full text-sm"
-                        >
-                          <span>{tag}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeTag(tag)}
-                            className="hover:bg-primary-foreground hover:text-primary rounded-full p-0.5"
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={formData.ProductCatId}
+                      onValueChange={(value) => {
+                        const category = categories.find(c => c.ProductCatId.toString() === value);
+                        setFormData({
+                          ...formData,
+                          ProductCatId: value,
+                          ProductCatTitle: category ? category.Title : "",
+                          ProductSubCatId: "",
+                          ProductSubCatTitle: ""
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.ProductCatId} value={category.ProductCatId.toString()}>
+                            {category.Title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="subCategory">Sub Category</Label>
+                    <Select
+                      value={formData.ProductSubCatId}
+                      onValueChange={(value) => {
+                        const subCategory = subCategories.find(sc => sc.ProductSubCatId.toString() === value);
+                        setFormData({
+                          ...formData,
+                          ProductSubCatId: value,
+                          ProductSubCatTitle: subCategory ? subCategory.Title : ""
+                        });
+                      }}
+                      disabled={!formData.ProductCatId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={formData.ProductCatId ? "Select sub category" : "Select category first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subCategories.map((subCategory) => (
+                          <SelectItem key={subCategory.ProductSubCatId} value={subCategory.ProductSubCatId.toString()}>
+                            {subCategory.Title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Product Tags - Dropdown with Chips */}
+                <div className="space-y-2">
+                  <Label>Product Tags</Label>
+                  <div className="space-y-2">
+                    <Select onValueChange={handleTagSelect}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select tags" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tags
+                          .filter(tag => !selectedTags.includes(tag.Title))
+                          .map((tag) => (
+                            <SelectItem key={tag.ProductTagId} value={tag.Title}>
+                              {tag.Title}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Selected Tags Chips */}
+                    {selectedTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedTags.map((tag) => (
+                          <div
+                            key={tag}
+                            className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-full text-sm"
                           >
-                            <X className="h-3 w-3" />
-                          </button>
+                            <span>{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeTag(tag)}
+                              className="hover:bg-primary-foreground hover:text-primary rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Image Upload */}
+                <div className="space-y-4">
+                  <Label>Main Product Image</Label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleMainImageUpload}
+                      className="hidden"
+                      id="main-image"
+                    />
+                    <Label htmlFor="main-image" className="cursor-pointer flex flex-col items-center">
+                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="font-medium">Click to upload main image</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        PNG, JPG, JPEG up to 10MB
+                      </p>
+                    </Label>
+                  </div>
+
+                  {/* Main Image Preview */}
+                  {mainImagePreview && (
+                    <div className="relative inline-block">
+                      <img
+                        src={mainImagePreview}
+                        alt="Main product"
+                        className="w-32 h-32 object-cover rounded-md border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={removeMainImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Fields */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="orderId">Order ID</Label>
+                    <Input
+                      id="orderId"
+                      value={formData.OrderId}
+                      onChange={(e) => setFormData({ ...formData, OrderId: e.target.value })}
+                      placeholder="Enter order ID"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="commonBulkId">Common Bulk ID</Label>
+                    <Input
+                      id="commonBulkId"
+                      value={formData.CommonBulkId}
+                      onChange={(e) => setFormData({ ...formData, CommonBulkId: e.target.value })}
+                      placeholder="Enter common bulk ID"
+                    />
+                  </div>
+                </div>
+
+                {/* Additional Images Upload Section */}
+                <div className="space-y-4">
+                  <Label>Additional Product Images</Label>
+
+                  {/* Upload Area */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                    <Input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="product-images"
+                    />
+                    <Label htmlFor="product-images" className="cursor-pointer flex flex-col items-center">
+                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="font-medium">Click to upload additional images</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        PNG, JPG, JPEG up to 10MB each
+                      </p>
+                    </Label>
+                  </div>
+
+                  {/* Image Previews */}
+                  {(existingImages.length > 0 || imagePreviews.length > 0) && (
+                    <div className="grid grid-cols-4 gap-4 mt-4">
+                      {/* Existing Images */}
+                      {existingImages.map((image) => (
+                        <div key={image.ProductImageId} className="relative group">
+                          <img
+                            src={`http://localhost:3001/${image.Image}`}
+                            alt="Product"
+                            className="w-full h-24 object-cover rounded-md border"
+                            onError={(e) => {
+                              // Fallback if image fails to load
+                              e.currentTarget.src = '/placeholder-image.jpg';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-md flex items-center justify-center">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => removeExistingImage(image.ProductImageId.toString())}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
+                            Existing
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* New Image Previews */}
+                      {imagePreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-md border"
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-md flex items-center justify-center">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => removeSelectedImage(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">
+                            New
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* Main Image Upload */}
-              <div className="space-y-4">
-                <Label>Main Product Image</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleMainImageUpload}
-                    className="hidden"
-                    id="main-image"
-                  />
-                  <Label htmlFor="main-image" className="cursor-pointer flex flex-col items-center">
-                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="font-medium">Click to upload main image</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      PNG, JPG, JPEG up to 10MB
-                    </p>
-                  </Label>
+                  {/* Image Count Summary */}
+                  {(existingImages.length > 0 || imagePreviews.length > 0) && (
+                    <div className="text-sm text-muted-foreground">
+                      {existingImages.length} existing image(s), {imagePreviews.length} new image(s) selected
+                      {imagesToDelete.length > 0 && `, ${imagesToDelete.length} marked for deletion`}
+                    </div>
+                  )}
                 </div>
 
-                {/* Main Image Preview */}
-                {mainImagePreview && (
-                  <div className="relative inline-block">
-                    <img 
-                      src={mainImagePreview} 
-                      alt="Main product" 
-                      className="w-32 h-32 object-cover rounded-md border"
+                {/* Rich Text Editors */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Short Description</Label>
+                    <ReactQuill
+                      theme="snow"
+                      value={formData.ShortDecription}
+                      onChange={(value) => setFormData({ ...formData, ShortDecription: value })}
+                      modules={quillModules}
+                      placeholder="Enter short description..."
                     />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6"
-                      onClick={removeMainImage}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
                   </div>
-                )}
-              </div>
 
-              {/* Additional Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="orderId">Order ID</Label>
-                  <Input
-                    id="orderId"
-                    value={formData.OrderId}
-                    onChange={(e) => setFormData({ ...formData, OrderId: e.target.value })}
-                    placeholder="Enter order ID"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="commonBulkId">Common Bulk ID</Label>
-                  <Input
-                    id="commonBulkId"
-                    value={formData.CommonBulkId}
-                    onChange={(e) => setFormData({ ...formData, CommonBulkId: e.target.value })}
-                    placeholder="Enter common bulk ID"
-                  />
-                </div>
-              </div>
-
-              {/* Additional Images Upload Section */}
-              <div className="space-y-4">
-                <Label>Additional Product Images</Label>
-                
-                {/* Upload Area */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <Input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="product-images"
-                  />
-                  <Label htmlFor="product-images" className="cursor-pointer flex flex-col items-center">
-                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="font-medium">Click to upload additional images</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      PNG, JPG, JPEG up to 10MB each
-                    </p>
-                  </Label>
-                </div>
-
-                {/* Image Previews */}
-                {(existingImages.length > 0 || imagePreviews.length > 0) && (
-                  <div className="grid grid-cols-4 gap-4 mt-4">
-                    {/* Existing Images */}
-                    {existingImages.map((image) => (
-                      <div key={image.ProductImageId} className="relative group">
-                        <img 
-                          src={`http://localhost:3001/${image.Image}`} 
-                          alt="Product" 
-                          className="w-full h-24 object-cover rounded-md border"
-                          onError={(e) => {
-                            // Fallback if image fails to load
-                            e.currentTarget.src = '/placeholder-image.jpg';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-md flex items-center justify-center">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeExistingImage(image.ProductImageId.toString())}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
-                          Existing
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* New Image Previews */}
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative group">
-                        <img 
-                          src={preview} 
-                          alt={`Preview ${index + 1}`} 
-                          className="w-full h-24 object-cover rounded-md border"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-md flex items-center justify-center">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeSelectedImage(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">
-                          New
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    <Label>Main Description 1</Label>
+                    <ReactQuill
+                      theme="snow"
+                      value={formData.MainDecription1}
+                      onChange={(value) => setFormData({ ...formData, MainDecription1: value })}
+                      modules={quillModules}
+                      placeholder="Enter main description 1..."
+                    />
                   </div>
-                )}
 
-                {/* Image Count Summary */}
-                {(existingImages.length > 0 || imagePreviews.length > 0) && (
-                  <div className="text-sm text-muted-foreground">
-                    {existingImages.length} existing image(s), {imagePreviews.length} new image(s) selected
-                    {imagesToDelete.length > 0 && `, ${imagesToDelete.length} marked for deletion`}
+                  <div className="space-y-2">
+                    <Label>Main Description 2</Label>
+                    <ReactQuill
+                      theme="snow"
+                      value={formData.MainDecription2}
+                      onChange={(value) => setFormData({ ...formData, MainDecription2: value })}
+                      modules={quillModules}
+                      placeholder="Enter main description 2..."
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Rich Text Editors */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Short Description</Label>
-                  <ReactQuill
-                    theme="snow"
-                    value={formData.ShortDecription}
-                    onChange={(value) => setFormData({ ...formData, ShortDecription: value })}
-                    modules={quillModules}
-                    placeholder="Enter short description..."
-                  />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Main Description 1</Label>
-                  <ReactQuill
-                    theme="snow"
-                    value={formData.MainDecription1}
-                    onChange={(value) => setFormData({ ...formData, MainDecription1: value })}
-                    modules={quillModules}
-                    placeholder="Enter main description 1..."
-                  />
+                {/* Switches */}
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="combo"
+                      checked={formData.Combo}
+                      onCheckedChange={(checked) => setFormData({ ...formData, Combo: checked })}
+                    />
+                    <Label htmlFor="combo">Combo Product</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="tranding"
+                      checked={formData.Tranding}
+                      onCheckedChange={(checked) => setFormData({ ...formData, Tranding: checked })}
+                    />
+                    <Label htmlFor="tranding">Trending</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="status"
+                      checked={formData.Status}
+                      onCheckedChange={(checked) => setFormData({ ...formData, Status: checked })}
+                    />
+                    <Label htmlFor="status">Active Status</Label>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Main Description 2</Label>
-                  <ReactQuill
-                    theme="snow"
-                    value={formData.MainDecription2}
-                    onChange={(value) => setFormData({ ...formData, MainDecription2: value })}
-                    modules={quillModules}
-                    placeholder="Enter main description 2..."
-                  />
+                {/* Submit Buttons */}
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setIsDialogOpen(false)}
+                    disabled={isLoading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={isLoading || !formData.Title || !formData.OriginalPrice || !formData.HighPrice || !formData.Quantity}
+                  >
+                    {isLoading ? "Saving..." : editingProduct ? "Update Product" : "Create Product"}
+                  </Button>
                 </div>
-              </div>
-
-              {/* Switches */}
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="combo"
-                    checked={formData.Combo}
-                    onCheckedChange={(checked) => setFormData({ ...formData, Combo: checked })}
-                  />
-                  <Label htmlFor="combo">Combo Product</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="tranding"
-                    checked={formData.Tranding}
-                    onCheckedChange={(checked) => setFormData({ ...formData, Tranding: checked })}
-                  />
-                  <Label htmlFor="tranding">Trending</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="status"
-                    checked={formData.Status}
-                    onCheckedChange={(checked) => setFormData({ ...formData, Status: checked })}
-                  />
-                  <Label htmlFor="status">Active Status</Label>
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-2 pt-4 border-t">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setIsDialogOpen(false)}
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  className="flex-1"
-                  disabled={isLoading || !formData.Title || !formData.OriginalPrice || !formData.HighPrice || !formData.Quantity}
-                >
-                  {isLoading ? "Saving..." : editingProduct ? "Update Product" : "Create Product"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Products Table */}
@@ -977,8 +1248,8 @@ const Products = () => {
                     )}
                   </TableCell>
                   <TableCell className="font-medium max-w-xs truncate">{product.Title}</TableCell>
-                  <TableCell>{getBrandName(product.BrandId)}</TableCell>
-                  <TableCell>{getCategoryName(product.ProductCatId)}</TableCell>
+                  <TableCell>{getBrandName(product)}</TableCell>
+                  <TableCell>{getCategoryName(product)}</TableCell>
                   <TableCell className="max-w-xs truncate">{getTagNames(product.ProductTag)}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">

@@ -122,6 +122,13 @@ export const productAPI = {
     method: "POST", 
     body: formData 
   }),
+   excelCreate: (data) => fetch(`${API_BASE_URL}/product/create_with_generate_image`, {
+    method: "POST",
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+  }),
   update: (formData) => fetch(`${API_BASE_URL}/product/update`, { 
     method: "PUT", 
     body: formData 
