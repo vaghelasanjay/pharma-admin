@@ -502,36 +502,52 @@ const Products = () => {
     // Process dummy with proper error handling
     const results = [];
     
-    for (let i = 0; i < dummy.length; i++) {
-      const product = dummy[i];
-      console.log(`Processing product ${i + 1}:`, product);
-      
-      try {
-        // Validate required fields before processing
-        if (!product || typeof product !== 'object') {
-          console.warn(`Skipping invalid product at index ${i}`);
-          continue;
-        }
-
-        const result = await productAPI.excelCreate(product);
-        results.push({
-          index: i,
-          success: true,
-          data: result,
-          product: product
-        });
-        console.log(`Successfully imported product ${i + 1}`);
-
-      } catch (error) {
-        console.error(`Failed to import product ${i + 1}:`, error);
-        results.push({
-          index: i,
-          success: false,
-          error: error.message,
-          product: product
-        });
+ for (let i = 0; i < dummy.length; i++) {
+  const product = dummy[i];
+  
+  // Validate required fields before processing
+  if (!product || typeof product !== 'object') {
+    console.warn(`Skipping invalid product at index ${i}`);
+    continue;
+  }
+  
+  try {
+    // Clean price fields - remove all non-numeric characters except decimal point
+    if (product.OriginalPrice) {
+      product.OriginalPrice = product.OriginalPrice.toString().replace(/[^0-9.]/g, '');
+      // Ensure it's a valid number, if empty set to null/0
+      if (product.OriginalPrice === '' || product.OriginalPrice === '.') {
+        product.OriginalPrice = '0';
       }
     }
+    
+    if (product.HighPrice) {
+      product.HighPrice = product.HighPrice.toString().replace(/[^0-9.]/g, '');
+      // Ensure it's a valid number, if empty set to null/0
+      if (product.HighPrice === '' || product.HighPrice === '.') {
+        product.HighPrice = '0';
+      }
+    }
+    
+    const result = await productAPI.excelCreate(product);
+    results.push({
+      index: i,
+      success: true,
+      data: result,
+      product: product
+    });
+    console.log(`Successfully imported product ${i + 1}`);
+
+  } catch (error) {
+    console.error(`Failed to import product ${i + 1}:`, error);
+    results.push({
+      index: i,
+      success: false,
+      error: error.message,
+      product: product
+    });
+  }
+}
 
     // Log summary
     const successful = results.filter(r => r.success).length;
@@ -578,7 +594,7 @@ const Products = () => {
               {
                 label: "Original Price",
                 key: "OriginalPrice",
-                alternateMatches: ["price", "original price", "cost"],
+                alternateMatches: ["price", "original price", "cost", "price 2"],
                 fieldType: { type: "input" },
                 example: "699",
                 validations: [
