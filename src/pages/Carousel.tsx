@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, ImageIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { carouselAPI } from "@/lib/api";
+import { carouselAPI, API_BASE_URL } from "@/lib/api";
 
 const Carousel = () => {
   const [carousels, setCarousels] = useState([]);
@@ -116,7 +116,7 @@ const Carousel = () => {
     setImageFile(null);
     // Set image preview from existing carousel image
     if (carousel.Image) {
-      setImagePreview(`http://localhost:3001/${carousel.Image}`);
+      setImagePreview(`${API_BASE_URL}/${carousel.Image}`);
     } else {
       setImagePreview(null);
     }
@@ -227,7 +227,7 @@ const Carousel = () => {
                     <div className="mt-2">
                       <p className="text-sm font-medium mb-1">Current Image:</p>
                       <img 
-                        src={`http://localhost:3001/${editingCarousel.Image}`} 
+                        src={`${API_BASE_URL}/${editingCarousel.Image}`} 
                         alt="Current carousel" 
                         className="w-full max-w-md h-48 object-cover rounded-md border"
                       />
@@ -294,7 +294,7 @@ const Carousel = () => {
                 <TableCell>
                   {carousel.Image ? (
                     <img 
-                      src={`http://localhost:3001/${carousel.Image}`} 
+                      src={`${API_BASE_URL}/${carousel.Image}`} 
                       alt={`Carousel ${carousel.CarouselId}`}
                       className="w-20 h-12 object-cover rounded-md border"
                     />

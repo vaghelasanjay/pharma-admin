@@ -30,7 +30,7 @@ import { Plus, Pencil, Trash2, X, Upload, ImageIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { productAPI, brandAPI, productCategoryAPI, productSubCategoryAPI, productsTagAPI } from "@/lib/api";
+import { productAPI, brandAPI, productCategoryAPI, productSubCategoryAPI, productsTagAPI, API_BASE_URL } from "@/lib/api";
 import { ReactSpreadsheetImport } from "react-spreadsheet-import";
 
 const Products = () => {
@@ -341,7 +341,7 @@ const Products = () => {
 
     // Set main image preview if exists
     if (product.MainImage) {
-      setMainImagePreview(`http://localhost:3001/${product.MainImage}`);
+      setMainImagePreview(`${API_BASE_URL}/${product.MainImage}`);
     }
 
     // Set existing images from ImagesData array
@@ -708,6 +708,7 @@ const Products = () => {
                 key: "BrandTitle",
                 alternateMatches: ["brand", "brand name"],
                 fieldType: { type: "input" },
+                // fieldType: { type: "select", options: brands.map((b) => ({ label: b.Title, value: b.Title })), multi: true },
                 example: "Bold Care",
               },
               {
@@ -1057,7 +1058,7 @@ const Products = () => {
                       {existingImages.map((image) => (
                         <div key={image.ProductImageId} className="relative group">
                           <img
-                            src={`http://localhost:3001/${image.Image}`}
+                            src={`${API_BASE_URL}/${image.Image}`}
                             alt="Product"
                             className="w-full h-24 object-cover rounded-md border"
                             onError={(e) => {
@@ -1238,7 +1239,7 @@ const Products = () => {
                     {productImage ? (
                       <div className="flex flex-col items-center">
                         <img 
-                          src={`http://localhost:3001/${productImage.Image}`} 
+                          src={`${API_BASE_URL}/${productImage.Image}`} 
                           alt={product.Title}
                           className="w-10 h-10 object-cover rounded border"
                           onError={(e) => {

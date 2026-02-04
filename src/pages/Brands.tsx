@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Tag } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { brandAPI } from "@/lib/api";
+import { brandAPI, API_BASE_URL } from "@/lib/api";
 
 const Brands = () => {
   const [brands, setBrands] = useState([]);
@@ -119,7 +119,7 @@ const Brands = () => {
     setImageFile(null);
     // Set image preview from existing brand image
     if (brand.Image) {
-      setImagePreview(`http://localhost:3001/${brand.Image}`);
+      setImagePreview(`${API_BASE_URL}/${brand.Image}`);
     } else {
       setImagePreview(null);
     }
@@ -251,7 +251,7 @@ const Brands = () => {
                     <div className="mt-2">
                       <p className="text-sm font-medium mb-1">Current Image:</p>
                       <img 
-                        src={`http://localhost:3001/${editingBrand.Image}`} 
+                        src={`${API_BASE_URL}/${editingBrand.Image}`} 
                         alt="Current brand" 
                         className="w-32 h-32 object-cover rounded-md border"
                       />
@@ -305,7 +305,7 @@ const Brands = () => {
                 <TableCell>
                   {brand.Image ? (
                     <img 
-                      src={`http://localhost:3001/${brand.Image}`} 
+                      src={`${API_BASE_URL}/${brand.Image}`} 
                       alt={brand.Title}
                       className="w-12 h-12 object-cover rounded-md border"
                     />
