@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,12 +26,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, X, Upload, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Upload, ImageIcon, FilePenLine } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { productAPI, brandAPI, productCategoryAPI, productSubCategoryAPI, productsTagAPI, API_BASE_URL } from "@/lib/api";
+import { productAPI, brandAPI, productCategoryAPI, productSubCategoryAPI, productsTagAPI, API_BASE_URL, productStockAPI } from "@/lib/api";
 import { ReactSpreadsheetImport } from "react-spreadsheet-import";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -49,6 +50,7 @@ const Products = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedMainImage, setSelectedMainImage] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
+  const [stockModalStatus, setStockModalStatus] = useState(false)
 
   const [formData, setFormData] = useState({
     Title: "",
@@ -75,6 +77,17 @@ const Products = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
+  // State for stock form
+const [stockFormData, setStockFormData] = useState({
+  ProductId: "1145",
+  Quantity: "",
+  StockEntry: "IN", // Default to IN
+  Remark: "",
+  PreviousQuantity: 0,
+  ActualStock: 0
+});
+
+console.log('stockFormData', stockFormData)
   useEffect(() => {
     fetchProducts();
     fetchBrands();
@@ -564,6 +577,64 @@ const Products = () => {
     throw error;
   }
 };
+
+  const stockModalToggle = () => setStockModalStatus(!stockModalStatus);
+
+  // Handle stock form submission
+  const handleStockSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Get current product stock to set as PreviousQuantity
+      const selectedProduct = products.find(
+        p => p.ProductId.toString() === stockFormData.ProductId
+      );
+
+      const currentStock = selectedProduct?.CurrentStock || 0;
+      const quantity = stockFormData.StockEntry == "IN" ? parseInt(stockFormData.Quantity) : -parseInt(stockFormData.Quantity);
+      const actualStock = currentStock + quantity;
+      const stockData = {
+        ProductId: parseInt(stockFormData.ProductId),
+        Quantity: parseInt(actualStock),
+        PreviousQuantity: selectedProduct?.CurrentStock || 0,
+        StockEntry: stockFormData.StockEntry,
+        Remark: stockFormData.Remark || null,
+      };
+
+      let response: any;
+      response = await productStockAPI.create(stockData);
+
+      if (response.success == true) {
+        setStockModalStatus(false);
+        setStockFormData({
+          ProductId: "",
+          Quantity: "",
+          StockEntry: "IN",
+          Remark: "",
+          PreviousQuantity: 0
+        });
+        fetchProducts();
+        toast({
+          title: "Stock entry added successfully",
+          description: "Stock entry added successfully",
+        });
+
+      }
+    } catch (error) {
+      console.error("Error saving stock entry:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const productStockManage = useMemo(() => {
+    const stock = (stockFormData.StockEntry == "IN" ? parseInt(stockFormData?.Quantity || 0) : -parseInt(stockFormData?.Quantity || 0)) + parseInt(stockFormData?.ActualStock || 0);
+    return stock
+  }, [stockFormData.Quantity, stockFormData.ActualStock, stockFormData.StockEntry])
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -1061,6 +1132,7 @@ const Products = () => {
                             src={`${API_BASE_URL}/${image.Image}`}
                             alt="Product"
                             className="w-full h-24 object-cover rounded-md border"
+                            // infinity issue
                             onError={(e) => {
                               // Fallback if image fails to load
                               e.currentTarget.src = '/placeholder-image.jpg';
@@ -1210,6 +1282,123 @@ const Products = () => {
         </div>
       </div>
 
+      {/* stock management */}
+      <Dialog open={stockModalStatus} onOpenChange={setStockModalStatus}>
+        <DialogTrigger asChild>
+          <Button onClick={() => {
+            setStockFormData({
+              ProductId: "",
+              Quantity: "",
+              StockEntry: "IN",
+              Remark: "",
+              PreviousQuantity: 0
+            });
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Stock
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{"Stock Management"}</DialogTitle>
+            <DialogDescription>
+              {"Add or remove product stock"}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleStockSubmit} className="space-y-4">
+
+            {/* Product Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="productId">Product</Label>
+              <Select
+                value={stockFormData.ProductId}
+                onValueChange={(value) => setStockFormData({ ...stockFormData, ProductId: value })}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.ProductId} value={product.ProductId.toString()}>
+                      {product.Title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Stock Entry Type - IN or OUT */}
+            <div className="space-y-2">
+              <Label>Stock Entry Type</Label>
+              <div className="flex justify-between">
+                <div className="flex space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroup
+                      value={stockFormData.StockEntry}
+                      onValueChange={(value) => setStockFormData({ ...stockFormData, StockEntry: value })}
+                      className="flex space-x-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="IN" id="in" />
+                        <Label htmlFor="in">Stock In</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="OUT" id="out" />
+                        <Label htmlFor="out">Stock Out</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+                <div>
+                  <Label >Actual Stock : {productStockManage}</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Quantity */}
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                value={stockFormData.Quantity}
+                onChange={(e) => setStockFormData({ ...stockFormData, Quantity: parseInt(e.target.value) })}
+                placeholder="Enter quantity"
+                required
+              />
+            </div>
+
+            {/* Previous Quantity - Hidden or Display Only */}
+            <div className="space-y-2" style={{ display: 'none' }}>
+              <Label htmlFor="previousQuantity">Previous Quantity</Label>
+              <Input
+                id="previousQuantity"
+                type="number"
+                value={stockFormData.PreviousQuantity}
+                readOnly
+              />
+            </div>
+
+            {/* Remark */}
+            <div className="space-y-2">
+              <Label htmlFor="remark">Remark (Optional)</Label>
+              <Input
+                id="remark"
+                value={stockFormData.Remark || ""}
+                onChange={(e) => setStockFormData({ ...stockFormData, Remark: e.target.value })}
+                placeholder="Add a remark"
+              />
+            </div>
+
+            <Button disabled={productStockManage <= 0} type="submit" className="w-full">
+              Save Stock Entry
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Products Table */}
       <div className="border rounded-lg overflow-x-auto">
         <Table>
@@ -1242,6 +1431,7 @@ const Products = () => {
                           src={`${API_BASE_URL}/${productImage.Image}`} 
                           alt={product.Title}
                           className="w-10 h-10 object-cover rounded border"
+                          // infinity issue
                           onError={(e) => {
                             // Fallback if image fails to load
                             e.currentTarget.src = '/placeholder-image.jpg';
@@ -1296,6 +1486,21 @@ const Products = () => {
                         onClick={() => handleEdit(product)}
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          console.log('product1231', product)
+                          stockModalToggle();
+                          setStockFormData({
+                            ...stockFormData,
+                            ActualStock: product.CurrentStock,
+                            ProductId: String(product.ProductId)
+                          });
+                        }}
+                      >
+                         <FilePenLine className="h-4 w-4"  />
                       </Button>
                       <Button
                         variant="ghost"

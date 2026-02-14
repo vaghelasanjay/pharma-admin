@@ -161,3 +161,9 @@ export const brandAPI = {
   update: (formData) => fetch(`${API_BASE_URL}/brand/update`, { method: "PUT", body: formData }),
   delete: (id) => apiCall(`/brand/delete?BrandId=${id}`, { method: "DELETE" }),
 };
+
+
+// Product Stock APIs
+export const productStockAPI = {
+  create: (data) => apiCall("/product_stock/create", { method: "POST", body: JSON.stringify(data) }),
+};
